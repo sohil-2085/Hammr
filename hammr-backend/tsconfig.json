@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    // File Layout — uncomment these, you need real output structure
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    // Environment Settings
+    "module": "nodenext",
+    "target": "esnext",
+    "lib": ["esnext"],           // ← uncomment
+    "types": ["node"],           // ← uncomment (needs @types/node installed)
+
+    // Add this — needed for clean default-import interop with
+    // npm packages that still ship as CommonJS internally
+    "esModuleInterop": true,
+
+    // Other Outputs
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    // Stricter Typechecking Options
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    // Recommended Options
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true
+  }
+}
