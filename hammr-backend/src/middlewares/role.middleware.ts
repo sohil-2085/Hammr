@@ -1,20 +1,11 @@
-import type {
-  NextFunction,
-  Response,
-} from 'express';
+import type { NextFunction, Response } from 'express';
 
 import type { AuthenticatedRequest } from './auth.middleware.js';
 
 type Role = 'BUYER' | 'SELLER' | 'ADMIN';
 
-export function requireRole(
-  ...allowedRoles: Role[]
-) {
-  return (
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction,
-  ) => {
+export function requireRole(...allowedRoles: Role[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({
         error: {

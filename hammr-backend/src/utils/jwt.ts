@@ -21,10 +21,7 @@ export interface TwoFactorSetupTokenPayload {
   type: '2fa_setup';
 }
 
-export function createAccessToken(
-  userId: string,
-  role: UserRole,
-): string {
+export function createAccessToken(userId: string, role: UserRole): string {
   const payload: AccessTokenPayload = {
     userId,
     role,
@@ -36,10 +33,7 @@ export function createAccessToken(
   });
 }
 
-export function createRefreshToken(
-  userId: string,
-  tokenId: string,
-): string {
+export function createRefreshToken(userId: string, tokenId: string): string {
   const payload: RefreshTokenPayload = {
     userId,
     tokenId,
@@ -51,10 +45,7 @@ export function createRefreshToken(
   });
 }
 
-export function createTwoFactorSetupToken(
-  userId: string,
-  role: UserRole,
-): string {
+export function createTwoFactorSetupToken(userId: string, role: UserRole): string {
   const payload: TwoFactorSetupTokenPayload = {
     userId,
     role,
@@ -77,10 +68,7 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 }
 
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
-  const payload = jwt.verify(
-    token,
-    env.jwtRefreshSecret,
-  ) as RefreshTokenPayload;
+  const payload = jwt.verify(token, env.jwtRefreshSecret) as RefreshTokenPayload;
 
   if (payload.type !== 'refresh') {
     throw new Error('Invalid refresh token');
@@ -89,13 +77,8 @@ export function verifyRefreshToken(token: string): RefreshTokenPayload {
   return payload;
 }
 
-export function verifyTwoFactorSetupToken(
-  token: string,
-): TwoFactorSetupTokenPayload {
-  const payload = jwt.verify(
-    token,
-    env.jwtAccessSecret,
-  ) as TwoFactorSetupTokenPayload;
+export function verifyTwoFactorSetupToken(token: string): TwoFactorSetupTokenPayload {
+  const payload = jwt.verify(token, env.jwtAccessSecret) as TwoFactorSetupTokenPayload;
 
   if (payload.type !== '2fa_setup') {
     throw new Error('Invalid 2FA setup token');
@@ -105,8 +88,5 @@ export function verifyTwoFactorSetupToken(
 }
 
 export function hashToken(token: string): string {
-  return crypto
-    .createHash('sha256')
-    .update(token)
-    .digest('hex');
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
