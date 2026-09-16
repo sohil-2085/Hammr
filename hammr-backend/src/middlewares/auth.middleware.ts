@@ -1,22 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
-import {
-  verifyAccessToken,
-  verifyTwoFactorSetupToken,
-} from '../utils/jwt.js';
+import { verifyAccessToken, verifyTwoFactorSetupToken } from '../utils/jwt.js';
 
-export interface AuthenticatedRequest
-  extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     role: 'BUYER' | 'SELLER' | 'ADMIN';
   };
 }
 
-export function authenticate(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction,
-) {
+export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization;
 
@@ -68,8 +60,7 @@ export function authenticateTwoFactorSetup(
 
     const token = header.substring(7);
 
-    const payload =
-      verifyTwoFactorSetupToken(token);
+    const payload = verifyTwoFactorSetupToken(token);
 
     if (payload.role !== 'SELLER') {
       return res.status(403).json({
@@ -90,8 +81,7 @@ export function authenticateTwoFactorSetup(
     return res.status(401).json({
       error: {
         code: 'INVALID_SETUP_TOKEN',
-        message:
-          'Invalid or expired 2FA setup token.',
+        message: 'Invalid or expired 2FA setup token.',
       },
     });
   }
