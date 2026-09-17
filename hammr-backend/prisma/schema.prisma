@@ -12,29 +12,64 @@ enum UserRole {
   ADMIN
 }
 
-model User {
-  id                String   @id @default(uuid()) @db.Uuid
-  email             String   @unique
-  passwordHash      String
-  role              UserRole
-  name              String
-  twoFactorEnabled  Boolean  @default(false)
-  twoFactorSecret   String?
-  createdAt         DateTime @default(now())
+enum ListingStatus {
+  SCHEDULED
+  LIVE
+  CLOSED
+}
 
-  refreshTokens     RefreshToken[]
+model User {
+  id               String   @id @default(uuid()) @db.Uuid
+  email            String   @unique
+  passwordHash     String
+  role             UserRole
+  name             String
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?
+  createdAt        DateTime @default(now())
+
+  refreshTokens RefreshToken[]
+  listings      Listing[]
 }
 
 model RefreshToken {
-  id          String   @id @default(uuid()) @db.Uuid
-  tokenHash   String   @unique
-  userId      String   @db.Uuid
-  expiresAt   DateTime
-  revokedAt   DateTime?
-  createdAt   DateTime @default(now())
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique
+  userId    String    @db.Uuid
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model Listing {
+  id                     String        @id @default(uuid()) @db.Uuid
+  sellerId               String        @db.Uuid
+  title                  String
+  description            String
+  images                 String[]
+  category               String
+  startingPrice          Decimal
+  reservePrice           Decimal?
+  currentHighestBid      Decimal?
+  currentHighestBidderId String?
+  minIncrement           Decimal       @default(5)
+  scheduledStartAt       DateTime
+  scheduledEndAt         DateTime
+  currentEndAt           DateTime
+  extensionCount         Int           @default(0)
+  status                 ListingStatus @default(SCHEDULED)
+  viewCount              Int           @default(0)
+  createdAt              DateTime      @default(now())
+
+  seller User @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([scheduledStartAt])
+  @@index([currentEndAt])
 }

@@ -1,17 +1,9 @@
 'use client';
 
-import {
-  createContext,
-  useContext,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { AuthUser, LoginResponse } from '@/types/auth';
-import {
-  logout as logoutRequest,
-  setAccessToken,
-} from '@/lib/api';
+import { getAccessToken, logout as logoutRequest, setAccessToken } from '@/lib/api';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -22,15 +14,13 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(
-    null,
-  );
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAccessToken(getAccessToken());
+  }, []);
 
   function login(result: LoginResponse) {
     if (result.user && result.accessToken) {
@@ -74,9 +64,7 @@ export function useAuth() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error(
-      'useAuth must be used inside AuthProvider.',
-    );
+    throw new Error('useAuth must be used inside AuthProvider.');
   }
 
   return context;
