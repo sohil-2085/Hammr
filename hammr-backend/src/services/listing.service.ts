@@ -2,10 +2,7 @@ import { ListingStatus } from '@prisma/client';
 import { prisma } from '../prisma/client.js';
 import type { CreateListingInput } from '../utils/validators/listing.validator.js';
 
-export const createListing = async (
-  sellerId: string,
-  input: CreateListingInput,
-) => {
+export const createListing = async (sellerId: string, input: CreateListingInput) => {
   const listing = await prisma.listing.create({
     data: {
       sellerId,
@@ -29,6 +26,17 @@ export const createListing = async (
 
 export const getListings = async () => {
   return prisma.listing.findMany({
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+};
+
+export const getMyListings = async (sellerId: string) => {
+  return prisma.listing.findMany({
+    where: {
+      sellerId,
+    },
     orderBy: {
       createdAt: 'desc',
     },

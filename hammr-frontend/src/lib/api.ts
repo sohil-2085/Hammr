@@ -33,41 +33,6 @@ export function getAccessToken() {
   return accessToken;
 }
 
-// async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-//   const headers = new Headers(options.headers);
-
-//   headers.set('Content-Type', 'application/json');
-
-//   // if (accessToken && !headers.has('Authorization')) {
-//   //   headers.set('Authorization', `Bearer ${accessToken}`);
-//   // }
-
-//   const currentToken = getAccessToken();
-
-//   if (currentToken && !headers.has('Authorization')) {
-//     headers.set('Authorization', `Bearer ${currentToken}`);
-//   }
-
-//   const response = await fetch(`${API_URL}${path}`, {
-//     ...options,
-//     headers,
-//   });
-
-//   if (!response.ok) {
-//     const body = await response.json().catch(() => null);
-
-//     throw new Error(body?.error?.message ?? 'Something went wrong.');
-//   }
-
-//   if (response.status === 204) {
-//     return undefined as T;
-//   }
-
-//   const body = await response.json();
-
-//   return body.data as T;
-// }
-
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
 
@@ -217,6 +182,12 @@ export function createListing(data: CreateListingInput) {
 
 export function getListings<T>() {
   return request<T>('/listings', {
+    method: 'GET',
+  });
+}
+
+export function getMyListings<T = unknown>() {
+  return request<T>('/listings/mine', {
     method: 'GET',
   });
 }

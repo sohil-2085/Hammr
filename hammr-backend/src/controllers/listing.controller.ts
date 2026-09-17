@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 
-import { createListing, getListings } from '../services/listing.service.js';
+import { createListing, getListings, getMyListings } from '../services/listing.service.js';
 
 import { createListingSchema } from '../utils/validators/listing.validator.js';
 
@@ -46,6 +46,31 @@ export const createListingController = async (
 export const getListingsController = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const listings = await getListings();
+
+    return res.status(200).json({
+      data: listings,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getMyListingsController = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required.',
+        },
+      });
+    }
+
+    const listings = await getMyListings(req.user.id);
 
     return res.status(200).json({
       data: listings,

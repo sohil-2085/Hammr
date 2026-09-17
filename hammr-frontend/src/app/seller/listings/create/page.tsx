@@ -1,37 +1,35 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-
+import SellerNavbar from '@/components/SellerNavbar';
 import ListingForm from '@/components/ListingForm';
 
 export default function CreateListingPage() {
   const router = useRouter();
 
   function handleSuccess() {
-    // router.push('/seller/dashboard');
-    router.push('/');
+    router.push('/seller/dashboard');
+    // router.push('/');
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-wider text-gray-500">
-            Seller
-          </p>
+    <>
+      <SellerNavbar />
+      <main className="min-h-screen bg-gray-50 px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-8">
+            <p className="text-sm font-semibold tracking-wider text-gray-500 uppercase">Seller</p>
 
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900">
-            Create Listing
-          </h1>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900">Create Listing</h1>
 
-          <p className="mt-2 max-w-2xl text-gray-600">
-            Create a new auction and give buyers something worth
-            bidding on.
-          </p>
+            <p className="mt-2 max-w-2xl text-gray-600">
+              Create a new auction and give buyers something worth bidding on.
+            </p>
+          </div>
+
+          <ListingForm onSuccess={handleSuccess} />
         </div>
-
-        <ListingForm onSuccess={handleSuccess} />
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
