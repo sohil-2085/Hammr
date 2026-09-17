@@ -67,7 +67,7 @@ export default function TwoFactorSetup() {
 
       sessionStorage.removeItem('hammr_2fa_setup_token');
 
-      if (result.accessToken && result.user) {
+      if ('accessToken' in result && result.accessToken && result.user) {
         login(result);
         router.push('/');
         return;
