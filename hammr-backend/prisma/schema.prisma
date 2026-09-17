@@ -6,51 +6,30 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserRole {
-  BUYER
-  SELLER
-  ADMIN
-}
-
-enum ListingStatus {
-  SCHEDULED
-  LIVE
-  CLOSED
-}
-
-enum TokenType {
-  ACCESS
-  REFRESH
-  TWO_FACTOR
-}
-
 model User {
-  id               String   @id @default(uuid()) @db.Uuid
-  email            String   @unique
+  id               String    @id @default(uuid()) @db.Uuid
+  email            String    @unique
   passwordHash     String
   role             UserRole
   name             String
-  twoFactorEnabled Boolean  @default(false)
+  twoFactorEnabled Boolean   @default(false)
   twoFactorSecret  String?
-  createdAt        DateTime @default(now())
-
-  tokens Token[]
-  listings      Listing[]
+  createdAt        DateTime  @default(now())
+  bids             Bid[]
+  listings         Listing[]
+  tokens           Token[]
 }
 
 model Token {
   id        String    @id @default(uuid()) @db.Uuid
   tokenHash String    @unique
   type      TokenType
-
   userId    String    @db.Uuid
-
   expiresAt DateTime
   revokedAt DateTime?
   usedAt    DateTime?
   createdAt DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([type])
@@ -77,11 +56,41 @@ model Listing {
   status                 ListingStatus @default(SCHEDULED)
   viewCount              Int           @default(0)
   createdAt              DateTime      @default(now())
-
-  seller User @relation(fields: [sellerId], references: [id])
+  bids                   Bid[]
+  seller                 User          @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId])
   @@index([status])
   @@index([scheduledStartAt])
   @@index([currentEndAt])
+}
+
+model Bid {
+  id        String   @id @default(uuid()) @db.Uuid
+  listingId String   @db.Uuid
+  bidderId  String   @db.Uuid
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+  bidder    User     @relation(fields: [bidderId], references: [id])
+  listing   Listing  @relation(fields: [listingId], references: [id])
+
+  @@index([listingId, amount(sort: Desc), createdAt])
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum ListingStatus {
+  SCHEDULED
+  LIVE
+  CLOSED
+}
+
+enum TokenType {
+  ACCESS
+  REFRESH
+  TWO_FACTOR
 }
