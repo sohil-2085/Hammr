@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-import { AuthUser, LoginResponse } from '@/types/auth';
+import type { AuthUser, LoginResponse } from '@/types/auth';
+
 import { getAccessToken, logout as logoutRequest, setAccessToken } from '@/lib/api';
 
 interface AuthContextValue {
@@ -16,30 +17,47 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
 
   useEffect(() => {
-    setAccessToken(getAccessToken());
+    // Access token is persisted in
+    // sessionStorage by api.ts.
+    //
+    // We intentionally don't keep
+    // another module-level in-memory
+    // copy of the token.
+    getAccessToken();
   }, []);
 
   function login(result: LoginResponse) {
-    if (result.user && result.accessToken) {
+    if ('user' in result && result.user && result.accessToken) {
       setUser(result.user);
 
       setAccessToken(result.accessToken);
 
       setRefreshToken(result.refreshToken ?? null);
+
+      return;
     }
+
+    // Login can also return a
+    // 2FA/setup requirement.
+    //
+    // In those cases there is no
+    // authenticated access token yet.
+    setUser(null);
+    setAccessToken(null);
   }
 
   async function logout() {
+    const accessToken = getAccessToken();
+
     try {
-      if (refreshToken) {
-        await logoutRequest(refreshToken);
+      if (accessToken && refreshToken) {
+        await logoutRequest(accessToken, refreshToken);
       }
     } finally {
-      // Clear the frontend authentication state
-      // even if the backend logout request fails.
       setAccessToken(null);
       setRefreshToken(null);
       setUser(null);

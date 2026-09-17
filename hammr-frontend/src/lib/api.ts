@@ -1,15 +1,12 @@
 import type { LoginResponse, RegisterResponse, TwoFactorSetupResponse } from '../types/auth';
+
 import type { CreateListingInput } from '../types/listing';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-let accessToken: string | null = null;
-
 const ACCESS_TOKEN_STORAGE_KEY = 'hammr_access_token';
 
-export function setAccessToken(token: string | null) {
-  accessToken = token;
-
+export function setAccessToken(token: string | null): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -21,16 +18,12 @@ export function setAccessToken(token: string | null) {
   }
 }
 
-export function getAccessToken() {
-  if (accessToken) {
-    return accessToken;
+export function getAccessToken(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
   }
 
-  if (typeof window !== 'undefined') {
-    accessToken = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
-  }
-
-  return accessToken;
+  return sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -124,9 +117,14 @@ export function refresh(refreshToken: string) {
   });
 }
 
-export function logout(refreshToken: string) {
+export function logout(refreshToken: string, accessToken?: string | null) {
   return request<void>('/auth/logout', {
     method: 'POST',
+    headers: accessToken
+      ? {
+          Authorization: `Bearer ${accessToken}`,
+        }
+      : undefined,
     body: JSON.stringify({
       refreshToken,
     }),
@@ -166,7 +164,7 @@ export async function logoutRequest(
         message = data.error.message;
       }
     } catch {
-      // Keep the default error message.
+      // Keep default error.
     }
 
     throw new Error(message);

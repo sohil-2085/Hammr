@@ -1,5 +1,10 @@
 import type { NextFunction, Request, Response } from 'express';
-import { verifyAccessToken, verifyTwoFactorSetupToken } from '../utils/jwt.js';
+
+import { TokenType } from '@prisma/client';
+
+import { verifyAccessToken, verifyTwoFactorSetupToken, hashToken } from '../utils/jwt.js';
+
+import { prisma } from '../prisma/client.js';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -8,7 +13,7 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export async function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization;
 
@@ -21,16 +26,55 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
       });
     }
 
-    const token = header.substring(7);
+    const token = header.substring(7).trim();
+
+    if (!token) {
+      return res.status(401).json({
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required.',
+        },
+      });
+    }
 
     const payload = verifyAccessToken(token);
+
+    const tokenRecord = await prisma.token.findUnique({
+      where: {
+        id: payload.tokenId,
+      },
+    });
+
+    if (
+      !tokenRecord ||
+      tokenRecord.type !== TokenType.ACCESS ||
+      tokenRecord.userId !== payload.userId ||
+      tokenRecord.revokedAt ||
+      tokenRecord.expiresAt <= new Date()
+    ) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_TOKEN',
+          message: 'Invalid or expired access token.',
+        },
+      });
+    }
+
+    if (tokenRecord.tokenHash !== hashToken(token)) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_TOKEN',
+          message: 'Invalid access token.',
+        },
+      });
+    }
 
     req.user = {
       id: payload.userId,
       role: payload.role,
     };
 
-    next();
+    return next();
   } catch {
     return res.status(401).json({
       error: {
@@ -41,7 +85,7 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
   }
 }
 
-export function authenticateTwoFactorSetup(
+export async function authenticateTwoFactorSetup(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
@@ -58,7 +102,16 @@ export function authenticateTwoFactorSetup(
       });
     }
 
-    const token = header.substring(7);
+    const token = header.substring(7).trim();
+
+    if (!token) {
+      return res.status(401).json({
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required.',
+        },
+      });
+    }
 
     const payload = verifyTwoFactorSetupToken(token);
 
@@ -71,12 +124,42 @@ export function authenticateTwoFactorSetup(
       });
     }
 
+    const tokenRecord = await prisma.token.findUnique({
+      where: {
+        id: payload.tokenId,
+      },
+    });
+
+    if (
+      !tokenRecord ||
+      tokenRecord.type !== TokenType.TWO_FACTOR ||
+      tokenRecord.userId !== payload.userId ||
+      tokenRecord.revokedAt ||
+      tokenRecord.expiresAt <= new Date()
+    ) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_SETUP_TOKEN',
+          message: 'Invalid or expired 2FA setup token.',
+        },
+      });
+    }
+
+    if (tokenRecord.tokenHash !== hashToken(token)) {
+      return res.status(401).json({
+        error: {
+          code: 'INVALID_SETUP_TOKEN',
+          message: 'Invalid 2FA setup token.',
+        },
+      });
+    }
+
     req.user = {
       id: payload.userId,
       role: payload.role,
     };
 
-    next();
+    return next();
   } catch {
     return res.status(401).json({
       error: {
