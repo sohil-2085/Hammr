@@ -4,6 +4,7 @@ import http from 'http';
 
 import { env } from './utils/env.js';
 import authRoutes from './routes/auth.routes.js';
+import listingRoutes from './routes/listing.routes.js';
 
 const app = express();
 
@@ -13,10 +14,7 @@ app.use(
   cors({
     origin: env.frontendOrigin,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-    ],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 );
 
@@ -29,6 +27,8 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
+
+app.use(listingRoutes);
 
 server.listen(env.port, () => {
   console.log(

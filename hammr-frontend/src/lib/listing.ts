@@ -1,4 +1,4 @@
-import { api } from '@/lib/api';
+import { getListings as getListingsRequest } from './api';
 
 export type Listing = {
   id: string;
@@ -13,18 +13,6 @@ export type Listing = {
   status: 'SCHEDULED' | 'LIVE' | 'CLOSED';
 };
 
-type ListingsResponse =
-  | Listing[]
-  | {
-      listings: Listing[];
-    };
-
 export async function getListings(): Promise<Listing[]> {
-  const response = await api.get<ListingsResponse>('/listings');
-
-  if (Array.isArray(response)) {
-    return response;
-  }
-
-  return response.listings;
+  return getListingsRequest<Listing[]>();
 }
