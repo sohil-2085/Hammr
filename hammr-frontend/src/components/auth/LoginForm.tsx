@@ -33,17 +33,17 @@ export default function LoginForm() {
         ...(requiresTwoFactor ? { twoFactorCode } : {}),
       });
 
-      if (result.requiresTwoFactor) {
+      if ('requiresTwoFactor' in result && result.requiresTwoFactor) {
         setRequiresTwoFactor(true);
         return;
       }
 
-      if (result.requiresTwoFactorSetup) {
+      if ('requiresTwoFactorSetup' in result && result.requiresTwoFactorSetup) {
         router.push('/auth/2fa/setup');
         return;
       }
 
-      if (result.user && result.accessToken) {
+      if ('accessToken' in result && result.user && result.accessToken) {
         login(result);
 
         if (result.user.role === 'SELLER') {

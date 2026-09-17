@@ -28,19 +28,11 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-export async function register(
-  req: Request,
-  res: Response,
-) {
+export async function register(req: Request, res: Response) {
   try {
     const input = registerSchema.parse(req.body);
 
-    const result = await authService.register(
-      input.name,
-      input.email,
-      input.password,
-      input.role,
-    );
+    const result = await authService.register(input.name, input.email, input.password, input.role);
 
     return res.status(201).json({
       data: result,
@@ -56,40 +48,24 @@ export async function register(
       });
     }
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'Registration failed.';
+    const message = error instanceof Error ? error.message : 'Registration failed.';
 
-    const status =
-      message.includes('already exists')
-        ? 409
-        : 400;
+    const status = message.includes('already exists') ? 409 : 400;
 
     return res.status(status).json({
       error: {
-        code:
-          status === 409
-            ? 'EMAIL_EXISTS'
-            : 'REGISTRATION_FAILED',
+        code: status === 409 ? 'EMAIL_EXISTS' : 'REGISTRATION_FAILED',
         message,
       },
     });
   }
 }
 
-export async function login(
-  req: Request,
-  res: Response,
-) {
+export async function login(req: Request, res: Response) {
   try {
     const input = loginSchema.parse(req.body);
 
-    const result = await authService.login(
-      input.email,
-      input.password,
-      input.twoFactorCode,
-    );
+    const result = await authService.login(input.email, input.password, input.twoFactorCode);
 
     return res.status(200).json({
       data: result,
@@ -108,19 +84,13 @@ export async function login(
     return res.status(401).json({
       error: {
         code: 'LOGIN_FAILED',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Login failed.',
+        message: error instanceof Error ? error.message : 'Login failed.',
       },
     });
   }
 }
 
-export async function setupTwoFactor(
-  req: AuthenticatedRequest,
-  res: Response,
-) {
+export async function setupTwoFactor(req: AuthenticatedRequest, res: Response) {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -131,10 +101,7 @@ export async function setupTwoFactor(
       });
     }
 
-    const result =
-      await authService.setupTwoFactor(
-        req.user.id,
-      );
+    const result = await authService.setupTwoFactor(req.user.id);
 
     return res.status(200).json({
       data: result,
@@ -143,19 +110,13 @@ export async function setupTwoFactor(
     return res.status(400).json({
       error: {
         code: 'TWO_FACTOR_SETUP_FAILED',
-        message:
-          error instanceof Error
-            ? error.message
-            : '2FA setup failed.',
+        message: error instanceof Error ? error.message : '2FA setup failed.',
       },
     });
   }
 }
 
-export async function verifyTwoFactor(
-  req: AuthenticatedRequest,
-  res: Response,
-) {
+export async function verifyTwoFactor(req: AuthenticatedRequest, res: Response) {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -166,26 +127,16 @@ export async function verifyTwoFactor(
       });
     }
 
-    const input =
-      twoFactorVerifySchema.parse(req.body);
+    const input = twoFactorVerifySchema.parse(req.body);
 
-    const result =
-      await authService.verifyTwoFactor(
-        req.user.id,
-        input.code,
-      );
+    const result = await authService.verifyTwoFactor(req.user.id, input.code);
 
-    const tokens =
-      await authService.loginAfterTwoFactor(
-        req.user.id,
-      );
+    const tokens = await authService.loginAfterTwoFactor(req.user.id);
 
     return res.status(200).json({
       data: {
         ...result,
-        ...(typeof tokens === 'object' && tokens !== null
-          ? tokens
-          : {}),
+        ...(typeof tokens === 'object' && tokens !== null ? tokens : {}),
       },
     });
   } catch (error) {
@@ -201,26 +152,17 @@ export async function verifyTwoFactor(
     return res.status(400).json({
       error: {
         code: 'TWO_FACTOR_VERIFICATION_FAILED',
-        message:
-          error instanceof Error
-            ? error.message
-            : '2FA verification failed.',
+        message: error instanceof Error ? error.message : '2FA verification failed.',
       },
     });
   }
 }
 
-export async function refresh(
-  req: Request,
-  res: Response,
-) {
+export async function refresh(req: Request, res: Response) {
   try {
     const input = refreshSchema.parse(req.body);
 
-    const tokens =
-      await authService.refresh(
-        input.refreshToken,
-      );
+    const tokens = await authService.refresh(input.refreshToken);
 
     return res.status(200).json({
       data: tokens,
@@ -229,23 +171,23 @@ export async function refresh(
     return res.status(401).json({
       error: {
         code: 'INVALID_REFRESH_TOKEN',
-        message:
-          'Refresh token is invalid or expired.',
+        message: 'Refresh token is invalid or expired.',
       },
     });
   }
 }
 
-export async function logout(
-  req: Request,
-  res: Response,
-) {
+export async function logout(req: Request, res: Response) {
   try {
     const input = refreshSchema.parse(req.body);
 
-    await authService.logout(
-      input.refreshToken,
-    );
+    const authorization = req.headers.authorization;
+
+    const accessToken = authorization?.startsWith('Bearer ')
+      ? authorization.substring(7).trim()
+      : undefined;
+
+    await authService.logout(input.refreshToken, accessToken);
 
     return res.status(204).send();
   } catch {
