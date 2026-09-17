@@ -20,6 +20,48 @@ type ListingFormProps = {
   onSuccess?: () => void;
 };
 
+/**
+ * Converts a datetime-local value entered by the seller
+ * into a proper UTC ISO timestamp.
+ *
+ * Example in India:
+ *
+ * Seller enters:
+ * 2026-09-17T19:04
+ *
+ * Browser understands this as:
+ * 7:04 PM IST
+ *
+ * It is sent to backend as:
+ * 2026-09-17T13:34:00.000Z
+ */
+function localDateTimeToISO(value: string): string {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toISOString();
+}
+
+/**
+ * Returns the user's current timezone name.
+ * Example:
+ * Asia/Calcutta
+ */
+function getUserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return 'Local Time';
+  }
+}
+
 export default function ListingForm({
   onSuccess,
 }: ListingFormProps) {
@@ -83,7 +125,8 @@ export default function ListingForm({
       .filter(Boolean);
 
     if (images.length === 0) {
-      newErrors.images = 'At least one image URL is required.';
+      newErrors.images =
+        'At least one image URL is required.';
     } else {
       const invalidImage = images.find((url) => {
         try {
@@ -149,14 +192,36 @@ export default function ListingForm({
         'Scheduled end time is required.';
     }
 
+    /**
+     * IMPORTANT:
+     *
+     * Do this comparison while the values are still
+     * datetime-local values.
+     *
+     * Both represent the seller's local timezone.
+     */
     if (
       form.scheduledStartAt &&
-      form.scheduledEndAt &&
-      new Date(form.scheduledEndAt) <=
-        new Date(form.scheduledStartAt)
+      form.scheduledEndAt
     ) {
-      newErrors.scheduledEndAt =
-        'Scheduled end time must be after the scheduled start time.';
+      const startDate = new Date(
+        form.scheduledStartAt,
+      );
+
+      const endDate = new Date(
+        form.scheduledEndAt,
+      );
+
+      if (
+        Number.isNaN(startDate.getTime()) ||
+        Number.isNaN(endDate.getTime())
+      ) {
+        newErrors.scheduledStartAt =
+          'Enter a valid start date and time.';
+      } else if (endDate <= startDate) {
+        newErrors.scheduledEndAt =
+          'Scheduled end time must be after the scheduled start time.';
+      }
     }
 
     return newErrors;
@@ -182,15 +247,60 @@ export default function ListingForm({
       .map((url) => url.trim())
       .filter(Boolean);
 
+    /**
+     * Convert seller's LOCAL datetime into UTC ISO
+     * only when sending data to backend.
+     *
+     * Example:
+     *
+     * Seller:
+     * 2026-09-17T19:04
+     *
+     * Backend receives in India:
+     * 2026-09-17T13:34:00.000Z
+     */
+    const scheduledStartAtUTC =
+      localDateTimeToISO(form.scheduledStartAt);
+
+    const scheduledEndAtUTC =
+      localDateTimeToISO(form.scheduledEndAt);
+
+    if (
+      !scheduledStartAtUTC ||
+      !scheduledEndAtUTC
+    ) {
+      setSubmitError(
+        'Invalid auction schedule. Please select valid start and end times.',
+      );
+
+      return;
+    }
+
     const listingData: CreateListingInput = {
       ...form,
+
       title: form.title.trim(),
+
       description: form.description.trim(),
+
       category: form.category.trim(),
+
       images,
-      startingPrice: form.startingPrice.trim(),
+
+      startingPrice:
+        form.startingPrice.trim(),
+
       reservePrice:
         form.reservePrice?.trim() || undefined,
+
+      /**
+       * SEND UTC ISO VALUES TO BACKEND
+       */
+      scheduledStartAt:
+        scheduledStartAtUTC,
+
+      scheduledEndAt:
+        scheduledEndAtUTC,
     };
 
     try {
@@ -653,11 +763,19 @@ export default function ListingForm({
             </div>
           </div>
 
+          {/* Timezone information */}
           <div className="mt-4 rounded-xl bg-gray-50 p-4">
             <p className="text-sm text-gray-600">
               <span className="font-medium text-gray-900">
-                Tip:
+                Timezone:
               </span>{' '}
+              Your selected times are interpreted in your
+              local timezone (
+              {getUserTimeZone()}
+              ) and stored consistently.
+            </p>
+
+            <p className="mt-2 text-xs text-gray-500">
               For your demo, use a start time about 1
               minute in the future and a short auction
               duration so you can observe the auction
@@ -734,12 +852,14 @@ export default function ListingForm({
                   stroke="currentColor"
                   strokeWidth="4"
                 />
+
                 <path
                   className="opacity-75"
                   fill="currentColor"
                   d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
                 />
               </svg>
+
               Creating Listing...
             </>
           ) : (
