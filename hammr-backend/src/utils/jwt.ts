@@ -29,7 +29,7 @@ export function createAccessToken(userId: string, role: UserRole): string {
   };
 
   return jwt.sign(payload, env.jwtAccessSecret, {
-    expiresIn: '15m',
+    expiresIn: '1d',
   });
 }
 
