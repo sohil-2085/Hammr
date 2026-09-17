@@ -40,3 +40,4 @@ export interface TwoFactorSetupResponse {
   qrCode: string;
   secret: string;
 }
+
