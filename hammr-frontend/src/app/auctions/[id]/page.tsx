@@ -8,19 +8,18 @@ import BuyerNavbar from '@/components/BuyerNavbar';
 import AuctionCountdown from '@/components/AuctionCountdown';
 import BidForm from '@/components/BidForm';
 import BidHistory from '@/components/BidHistory';
+
 import { useAuctionCountdown } from '@/hooks/useAuctionCountdown';
+import { useAuth } from '@/hooks/useAuth';
 
 import { getAuctionBidHistory, getAuctionDetail, placeBid } from '@/lib/auction-api';
 
-import { createAuctionSocket } from '@/lib/socket';
-
 import { getAccessToken } from '@/lib/api';
 
-import { useAuth } from '@/hooks/useAuth';
+import { createAuctionSocket } from '@/lib/socket';
 
 import type {
   AuctionDetail,
-  AuctionStatus,
   BidHistoryItem,
   BidNewEvent,
   AuctionExtendedEvent,
@@ -48,6 +47,9 @@ export default function AuctionDetailPage() {
 
   const [notice, setNotice] = useState('');
 
+  /*
+   * Load auction and bid history.
+   */
   const loadAuction = useCallback(async () => {
     if (!listingId) {
       return;
@@ -63,7 +65,6 @@ export default function AuctionDetailPage() {
       ]);
 
       setAuction(auctionData);
-
       setBids(bidData);
     } catch (err) {
       console.error(err);
@@ -74,9 +75,38 @@ export default function AuctionDetailPage() {
     }
   }, [listingId]);
 
+  /*
+   * Load auction when listing ID changes.
+   */
   useEffect(() => {
     loadAuction();
   }, [loadAuction]);
+
+  /*
+   * IMPORTANT:
+   *
+   * This hook MUST be called on every render.
+   *
+   * Do NOT put it after:
+   *
+   * if (loading) return ...
+   *
+   * or:
+   *
+   * if (error || !auction) return ...
+   *
+   * Otherwise React will throw error #310.
+   *
+   * Safe fallback values are used while the
+   * auction is still loading.
+   */
+  const countdown = useAuctionCountdown({
+    status: auction?.status ?? 'SCHEDULED',
+
+    scheduledStartAt: auction?.scheduledStartAt ?? new Date().toISOString(),
+
+    currentEndAt: auction?.currentEndAt ?? new Date().toISOString(),
+  });
 
   /*
    * Socket.IO connection.
@@ -92,9 +122,10 @@ export default function AuctionDetailPage() {
 
     /*
      * No authenticated token:
-     * REST detail still works, but the current
-     * backend Socket.IO configuration requires
-     * authentication.
+     *
+     * REST detail still works,
+     * but the current backend Socket.IO
+     * configuration requires authentication.
      */
     if (!token) {
       return;
@@ -112,6 +143,9 @@ export default function AuctionDetailPage() {
       setSocketConnected(false);
     }
 
+    /*
+     * New bid received.
+     */
     function handleBidNew(event: BidNewEvent) {
       if (event.bid.listingId !== listingId) {
         return;
@@ -138,12 +172,7 @@ export default function AuctionDetailPage() {
       });
 
       /*
-       * Add new bid to the beginning.
-       *
-       * The backend history is ordered by
-       * amount DESC, then createdAt ASC.
-       * A successful new bid is the new
-       * highest bid.
+       * Add the new bid to the history.
        */
       setBids((current) => {
         const exists = current.some((bid) => bid.id === event.bid.id);
@@ -155,15 +184,22 @@ export default function AuctionDetailPage() {
         return [
           {
             id: event.bid.id,
+
             bidderName: event.bid.bidderName,
+
             amount: event.bid.amount,
+
             createdAt: event.bid.createdAt,
           },
+
           ...current,
         ];
       });
     }
 
+    /*
+     * Auction extended.
+     */
     function handleAuctionExtended(event: AuctionExtendedEvent) {
       if (event.listingId !== listingId) {
         return;
@@ -192,6 +228,9 @@ export default function AuctionDetailPage() {
       }, 4000);
     }
 
+    /*
+     * Auction started.
+     */
     function handleAuctionStarted(event: AuctionStartedEvent) {
       if (event.listingId !== listingId) {
         return;
@@ -209,6 +248,9 @@ export default function AuctionDetailPage() {
       });
     }
 
+    /*
+     * Auction closed.
+     */
     function handleAuctionClosed(event: AuctionClosedEvent) {
       if (event.listingId !== listingId) {
         return;
@@ -228,18 +270,14 @@ export default function AuctionDetailPage() {
       setNotice('This auction has closed.');
     }
 
+    /*
+     * Private outbid notification.
+     */
     function handleOutbid(event: BidOutbidEvent) {
       if (event.listingId !== listingId) {
         return;
       }
 
-      /*
-       * Only show the message if this
-       * logged-in user was the previous bidder.
-       *
-       * The backend already sends this event
-       * privately to the previous bidder's room.
-       */
       setNotice(`You have been outbid. New highest bid: $${event.newHighestBid}.`);
 
       window.setTimeout(() => {
@@ -247,6 +285,9 @@ export default function AuctionDetailPage() {
       }, 5000);
     }
 
+    /*
+     * Register Socket.IO listeners.
+     */
     socket.on('connect', handleConnect);
 
     socket.on('disconnect', handleDisconnect);
@@ -261,6 +302,9 @@ export default function AuctionDetailPage() {
 
     socket.on('bid:outbid', handleOutbid);
 
+    /*
+     * Cleanup.
+     */
     return () => {
       socket.emit('auction:leave', listingId);
 
@@ -286,7 +330,7 @@ export default function AuctionDetailPage() {
    * Calculate minimum next bid from
    * the current server state.
    *
-   * We don't expose reservePrice.
+   * Reserve price is never exposed.
    */
   const minimumNextBid = useMemo(() => {
     if (!auction) {
@@ -300,29 +344,33 @@ export default function AuctionDetailPage() {
     return Number(auction.startingPrice).toFixed(2);
   }, [auction]);
 
+  /*
+   * Place bid.
+   */
   async function handlePlaceBid(amount: string) {
     if (!listingId) {
       return;
     }
 
     /*
-     * User must be logged in to bid.
+     * User must be logged in.
      */
     if (!user) {
       throw new Error('Please log in as a buyer to place a bid.');
     }
 
+    /*
+     * Only BUYER accounts can bid.
+     */
     if (user.role !== 'BUYER') {
       throw new Error('Only buyers can place bids.');
     }
 
     /*
-     * Important:
+     * Server validates the auction and bid.
      *
-     * We do NOT manually refresh the page.
-     *
-     * The backend emits bid:new and the
-     * Socket.IO handler updates the UI.
+     * Socket.IO will update the UI with
+     * the resulting bid:new event.
      */
     await placeBid(listingId, amount);
 
@@ -333,6 +381,12 @@ export default function AuctionDetailPage() {
     }, 3000);
   }
 
+  /*
+   * Loading state.
+   *
+   * IMPORTANT:
+   * All hooks have already been called above.
+   */
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50">
@@ -347,6 +401,9 @@ export default function AuctionDetailPage() {
     );
   }
 
+  /*
+   * Error state.
+   */
   if (error || !auction) {
     return (
       <main className="min-h-screen bg-gray-50">
@@ -370,24 +427,24 @@ export default function AuctionDetailPage() {
     );
   }
 
-  const countdown = useAuctionCountdown({
-    status: auction.status,
-    scheduledStartAt: auction.scheduledStartAt,
-    currentEndAt: auction.currentEndAt,
-  });
-
+  /*
+   * Buyer role.
+   */
   const isBuyer = user?.role === 'BUYER';
 
   /*
-   * Use the actual clock-based auction phase
-   * for the UI.
+   * IMPORTANT:
    *
-   * This prevents the button from remaining
-   * disabled while the database status is still
-   * waiting for the lifecycle job.
+   * Use the clock-based countdown phase
+   * rather than the potentially stale database
+   * status for the UI.
    */
   const isLive = countdown.phase === 'LIVE';
 
+  /*
+   * Only logged-in buyers can bid,
+   * and only while the auction is LIVE.
+   */
   const canBid = isBuyer && isLive;
 
   return (
@@ -402,7 +459,7 @@ export default function AuctionDetailPage() {
           </Link>
         </div>
 
-        {/* Live notification */}
+        {/* Notification */}
         {notice && (
           <div
             role="status"
@@ -423,11 +480,11 @@ export default function AuctionDetailPage() {
           </div>
         )}
 
-        {/* Main */}
+        {/* Main layout */}
         <div className="grid gap-8 lg:grid-cols-[1.4fr_0.8fr]">
           {/* Left */}
           <div>
-            {/* Images */}
+            {/* Image */}
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
               <div className="flex aspect-[16/10] items-center justify-center bg-gray-100">
                 {auction.images?.[0] ? (
@@ -442,9 +499,12 @@ export default function AuctionDetailPage() {
               </div>
             </div>
 
-            {/* Information */}
+            {/* Auction information */}
             <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center gap-3">
+                {/* IMPORTANT:
+                    Display countdown phase,
+                    not stale database status. */}
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-bold ${
                     countdown.phase === 'LIVE'
@@ -469,6 +529,7 @@ export default function AuctionDetailPage() {
               </p>
 
               <div className="mt-7 grid gap-4 sm:grid-cols-3">
+                {/* Starting price */}
                 <div className="rounded-xl bg-gray-50 p-4">
                   <p className="text-xs font-medium text-gray-500">Starting Price</p>
 
@@ -477,6 +538,7 @@ export default function AuctionDetailPage() {
                   </p>
                 </div>
 
+                {/* Highest bid */}
                 <div className="rounded-xl bg-gray-50 p-4">
                   <p className="text-xs font-medium text-gray-500">Current Highest Bid</p>
 
@@ -487,6 +549,7 @@ export default function AuctionDetailPage() {
                   </p>
                 </div>
 
+                {/* Increment */}
                 <div className="rounded-xl bg-gray-50 p-4">
                   <p className="text-xs font-medium text-gray-500">Bid Increment</p>
 
@@ -512,7 +575,7 @@ export default function AuctionDetailPage() {
               currentEndAt={auction.currentEndAt}
             />
 
-            {/* Current Bid */}
+            {/* Current bid */}
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
                 Current Highest Bid
@@ -529,7 +592,7 @@ export default function AuctionDetailPage() {
               )}
             </div>
 
-            {/* Bid Form */}
+            {/* Bid form */}
             {isBuyer ? (
               <BidForm
                 minimumNextBid={minimumNextBid}
