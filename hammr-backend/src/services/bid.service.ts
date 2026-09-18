@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { ListingStatus, Prisma } from '@prisma/client';
 
 import { prisma } from '../prisma/client.js';
 
@@ -65,32 +65,88 @@ export async function placeBid(listingId: string, bidderId: string, input: Place
     }
 
     /*
-     * Auction must currently be LIVE.
+     * Always use the backend/server time for
+     * auction validation.
      */
-    if (listing.status !== 'LIVE') {
-      throw new Error('AUCTION_NOT_LIVE');
-    }
-
     const now = new Date();
 
     /*
-     * Never accept a bid after the effective end time.
+     * Check whether the auction has actually started.
      */
-    if (now >= listing.currentEndAt) {
+    const auctionHasStarted = now >= listing.scheduledStartAt;
+
+    /*
+     * Check the effective end time.
+     *
+     * currentEndAt can be extended by the
+     * anti-sniping rule.
+     */
+    const auctionHasEnded = now >= listing.currentEndAt;
+
+    /*
+     * CLOSED is final.
+     *
+     * Never allow a bid into an already closed
+     * auction, even if the timestamps happen
+     * to be inconsistent.
+     */
+    if (listing.status === ListingStatus.CLOSED) {
+      throw new Error('AUCTION_CLOSED');
+    }
+
+    /*
+     * Never accept a bid after the effective
+     * end time.
+     */
+    if (auctionHasEnded) {
       throw new Error('AUCTION_ENDED');
     }
 
     /*
-     * Seller cannot bid.
+     * Auction has not started yet.
+     */
+    if (!auctionHasStarted) {
+      throw new Error('AUCTION_NOT_LIVE');
+    }
+
+    /*
+     * If the auction has reached its scheduled
+     * start time but the database status is still
+     * SCHEDULED, transition it to LIVE.
+     *
+     * IMPORTANT:
+     *
+     * The listing row was already locked using
+     * SELECT ... FOR UPDATE.
+     *
+     * Therefore another simultaneous bid cannot
+     * modify this listing between the validation
+     * and this status update.
+     */
+    if (listing.status === ListingStatus.SCHEDULED) {
+      await tx.listing.update({
+        where: {
+          id: listing.id,
+        },
+        data: {
+          status: ListingStatus.LIVE,
+        },
+      });
+    }
+
+    /*
+     * Seller cannot bid on their own listing.
      */
     if (listing.sellerId === bidderId) {
       throw new Error('SELLER_CANNOT_BID');
     }
 
     /*
-     * Save previous highest bidder BEFORE updating Listing.
+     * Save previous highest bidder BEFORE
+     * updating Listing.
      *
-     * This is required for the private bid:outbid event.
+     * This is required for the private
+     * bid:outbid event.
      */
     const previousHighestBidderId = listing.currentHighestBidderId;
 
@@ -122,6 +178,7 @@ export async function placeBid(listingId: string, bidderId: string, input: Place
         bidderId,
         amount: requestedAmount,
       },
+
       include: {
         bidder: {
           select: {
@@ -135,14 +192,18 @@ export async function placeBid(listingId: string, bidderId: string, input: Place
     /*
      * Anti-sniping.
      *
-     * Last 2 minutes:
+     * If a bid arrives within the last 2 minutes:
+     *
      *   +2 minutes
      *
      * Maximum:
+     *
      *   10 extensions
      */
     let newEndAt = listing.currentEndAt;
+
     let newExtensionCount = listing.extensionCount;
+
     let wasExtended = false;
 
     const timeUntilEnd = listing.currentEndAt.getTime() - now.getTime();
@@ -156,23 +217,33 @@ export async function placeBid(listingId: string, bidderId: string, input: Place
     }
 
     /*
-     * Update denormalized current-highest-bid state
-     * in the SAME transaction.
+     * Update denormalized current-highest-bid
+     * state in the SAME transaction.
+     *
+     * Also persist LIVE status if this bid
+     * caused the SCHEDULED -> LIVE transition.
      */
     const updatedListing = await tx.listing.update({
       where: {
         id: listingId,
       },
+
       data: {
+        status: ListingStatus.LIVE,
+
         currentHighestBid: requestedAmount,
+
         currentHighestBidderId: bidderId,
+
         currentEndAt: newEndAt,
+
         extensionCount: newExtensionCount,
       },
     });
 
     /*
-     * Reserve amount itself is NEVER returned to buyer.
+     * Reserve amount itself is NEVER returned
+     * to the buyer.
      */
     const reserveMet = listing.reservePrice !== null && requestedAmount.gte(listing.reservePrice);
 
@@ -238,8 +309,11 @@ export async function getBidHistory(listingId: string) {
 
   return bids.map((bid) => ({
     id: bid.id,
+
     bidderName: bid.bidder.name,
+
     amount: bid.amount.toFixed(2),
+
     createdAt: bid.createdAt.toISOString(),
   }));
 }

@@ -20,10 +20,16 @@ interface UseAuctionCountdownOptions {
 function getRemainingMilliseconds(
   target: string,
 ) {
+  const targetTime =
+    new Date(target).getTime();
+
+  if (!Number.isFinite(targetTime)) {
+    return 0;
+  }
+
   return Math.max(
     0,
-    new Date(target).getTime() -
-      Date.now(),
+    targetTime - Date.now(),
   );
 }
 
@@ -37,64 +43,81 @@ export function useAuctionCountdown({
   );
 
   useEffect(() => {
-    const interval = window.setInterval(
-      () => {
+    const interval =
+      window.setInterval(() => {
         setNow(Date.now());
-      },
-      1000,
-    );
+      }, 1000);
 
     return () => {
-      window.clearInterval(interval);
+      window.clearInterval(
+        interval,
+      );
     };
   }, []);
 
+  const startTime =
+    useMemo(
+      () =>
+        new Date(
+          scheduledStartAt,
+        ).getTime(),
+      [scheduledStartAt],
+    );
+
+  const endTime =
+    useMemo(
+      () =>
+        new Date(
+          currentEndAt,
+        ).getTime(),
+      [currentEndAt],
+    );
+
   const phase =
     useMemo<CountdownPhase>(() => {
-      if (status === 'CLOSED') {
+      /*
+       * Invalid dates should not be
+       * treated as a live auction.
+       */
+      if (
+        !Number.isFinite(
+          startTime,
+        ) ||
+        !Number.isFinite(
+          endTime,
+        )
+      ) {
         return 'CLOSED';
       }
 
-      if (
-        status === 'SCHEDULED' &&
-        now <
-          new Date(
-            scheduledStartAt,
-          ).getTime()
-      ) {
-        return 'SCHEDULED';
-      }
-
-      if (
-        status === 'LIVE' &&
-        now <
-          new Date(
-            currentEndAt,
-          ).getTime()
-      ) {
-        return 'LIVE';
+      /*
+       * Effective end time always wins.
+       *
+       * This prevents:
+       *
+       * LIVE
+       * 00:00:00
+       *
+       * when the auction has actually ended.
+       */
+      if (now >= endTime) {
+        return 'CLOSED';
       }
 
       /*
-       * If local time reaches the scheduled start,
-       * display LIVE even before the scheduler event
-       * arrives.
+       * Before scheduled start.
        */
-      if (
-        status === 'SCHEDULED' &&
-        now >=
-          new Date(
-            scheduledStartAt,
-          ).getTime()
-      ) {
-        return 'LIVE';
+      if (now < startTime) {
+        return 'SCHEDULED';
       }
 
-      return 'CLOSED';
+      /*
+       * Between start and current end.
+       */
+      return 'LIVE';
     }, [
-      status,
-      scheduledStartAt,
-      currentEndAt,
+      startTime,
+      endTime,
       now,
     ]);
 
@@ -104,10 +127,14 @@ export function useAuctionCountdown({
       : currentEndAt;
 
   const remaining =
-    getRemainingMilliseconds(target);
+    getRemainingMilliseconds(
+      target,
+    );
 
   const totalSeconds =
-    Math.floor(remaining / 1000);
+    Math.floor(
+      remaining / 1000,
+    );
 
   const days =
     Math.floor(
@@ -139,6 +166,7 @@ export function useAuctionCountdown({
     hours,
     minutes,
     seconds,
-    isExpired: remaining <= 0,
+    isExpired:
+      remaining <= 0,
   };
 }

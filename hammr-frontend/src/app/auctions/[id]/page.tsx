@@ -8,20 +8,13 @@ import BuyerNavbar from '@/components/BuyerNavbar';
 import AuctionCountdown from '@/components/AuctionCountdown';
 import BidForm from '@/components/BidForm';
 import BidHistory from '@/components/BidHistory';
+import { useAuctionCountdown } from '@/hooks/useAuctionCountdown';
 
-import {
-  getAuctionBidHistory,
-  getAuctionDetail,
-  placeBid,
-} from '@/lib/auction-api';
+import { getAuctionBidHistory, getAuctionDetail, placeBid } from '@/lib/auction-api';
 
-import {
-  createAuctionSocket,
-} from '@/lib/socket';
+import { createAuctionSocket } from '@/lib/socket';
 
-import {
-  getAccessToken,
-} from '@/lib/api';
+import { getAccessToken } from '@/lib/api';
 
 import { useAuth } from '@/hooks/useAuth';
 
@@ -39,76 +32,47 @@ import type {
 export default function AuctionDetailPage() {
   const params = useParams();
 
-  const listingId =
-    typeof params.id === 'string'
-      ? params.id
-      : '';
+  const listingId = typeof params.id === 'string' ? params.id : '';
 
   const { user } = useAuth();
 
-  const [auction, setAuction] =
-    useState<AuctionDetail | null>(
-      null,
-    );
+  const [auction, setAuction] = useState<AuctionDetail | null>(null);
 
-  const [bids, setBids] =
-    useState<BidHistoryItem[]>(
-      [],
-    );
+  const [bids, setBids] = useState<BidHistoryItem[]>([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [error, setError] =
-    useState('');
+  const [error, setError] = useState('');
 
-  const [socketConnected, setSocketConnected] =
-    useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
 
-  const [notice, setNotice] =
-    useState('');
+  const [notice, setNotice] = useState('');
 
-  const loadAuction =
-    useCallback(async () => {
-      if (!listingId) {
-        return;
-      }
+  const loadAuction = useCallback(async () => {
+    if (!listingId) {
+      return;
+    }
 
-      try {
-        setLoading(true);
-        setError('');
+    try {
+      setLoading(true);
+      setError('');
 
-        const [
-          auctionData,
-          bidData,
-        ] = await Promise.all([
-          getAuctionDetail(
-            listingId,
-          ),
-          getAuctionBidHistory(
-            listingId,
-          ),
-        ]);
+      const [auctionData, bidData] = await Promise.all([
+        getAuctionDetail(listingId),
+        getAuctionBidHistory(listingId),
+      ]);
 
-        setAuction(
-          auctionData,
-        );
+      setAuction(auctionData);
 
-        setBids(
-          bidData,
-        );
-      } catch (err) {
-        console.error(err);
+      setBids(bidData);
+    } catch (err) {
+      console.error(err);
 
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Unable to load auction.',
-        );
-      } finally {
-        setLoading(false);
-      }
-    }, [listingId]);
+      setError(err instanceof Error ? err.message : 'Unable to load auction.');
+    } finally {
+      setLoading(false);
+    }
+  }, [listingId]);
 
   useEffect(() => {
     loadAuction();
@@ -124,8 +88,7 @@ export default function AuctionDetailPage() {
       return;
     }
 
-    const token =
-      getAccessToken();
+    const token = getAccessToken();
 
     /*
      * No authenticated token:
@@ -137,63 +100,42 @@ export default function AuctionDetailPage() {
       return;
     }
 
-    const socket =
-      createAuctionSocket(
-        token,
-      );
+    const socket = createAuctionSocket(token);
 
     function handleConnect() {
-      setSocketConnected(
-        true,
-      );
+      setSocketConnected(true);
 
-      socket.emit(
-        'auction:join',
-        listingId,
-      );
+      socket.emit('auction:join', listingId);
     }
 
     function handleDisconnect() {
-      setSocketConnected(
-        false,
-      );
+      setSocketConnected(false);
     }
 
-    function handleBidNew(
-      event: BidNewEvent,
-    ) {
-      if (
-        event.bid.listingId !==
-        listingId
-      ) {
+    function handleBidNew(event: BidNewEvent) {
+      if (event.bid.listingId !== listingId) {
         return;
       }
 
-      setAuction(
-        (current) => {
-          if (!current) {
-            return current;
-          }
+      setAuction((current) => {
+        if (!current) {
+          return current;
+        }
 
-          return {
-            ...current,
+        return {
+          ...current,
 
-            currentHighestBid:
-              event.currentHighestBid,
+          currentHighestBid: event.currentHighestBid,
 
-            currentHighestBidderId:
-              event.currentHighestBidderId,
+          currentHighestBidderId: event.currentHighestBidderId,
 
-            currentEndAt:
-              event.currentEndAt,
+          currentEndAt: event.currentEndAt,
 
-            extensionCount:
-              event.extensionCount,
+          extensionCount: event.extensionCount,
 
-            status: 'LIVE',
-          };
-        },
-      );
+          status: 'LIVE',
+        };
+      });
 
       /*
        * Add new bid to the beginning.
@@ -203,135 +145,91 @@ export default function AuctionDetailPage() {
        * A successful new bid is the new
        * highest bid.
        */
-      setBids(
-        (current) => {
-          const exists =
-            current.some(
-              (bid) =>
-                bid.id ===
-                event.bid.id,
-            );
+      setBids((current) => {
+        const exists = current.some((bid) => bid.id === event.bid.id);
 
-          if (exists) {
-            return current;
-          }
+        if (exists) {
+          return current;
+        }
 
-          return [
-            {
-              id: event.bid.id,
-              bidderName:
-                event.bid
-                  .bidderName,
-              amount:
-                event.bid.amount,
-              createdAt:
-                event.bid
-                  .createdAt,
-            },
-            ...current,
-          ];
-        },
-      );
+        return [
+          {
+            id: event.bid.id,
+            bidderName: event.bid.bidderName,
+            amount: event.bid.amount,
+            createdAt: event.bid.createdAt,
+          },
+          ...current,
+        ];
+      });
     }
 
-    function handleAuctionExtended(
-      event: AuctionExtendedEvent,
-    ) {
-      if (
-        event.listingId !==
-        listingId
-      ) {
+    function handleAuctionExtended(event: AuctionExtendedEvent) {
+      if (event.listingId !== listingId) {
         return;
       }
 
-      setAuction(
-        (current) => {
-          if (!current) {
-            return current;
-          }
+      setAuction((current) => {
+        if (!current) {
+          return current;
+        }
 
-          return {
-            ...current,
+        return {
+          ...current,
 
-            currentEndAt:
-              event.currentEndAt,
+          currentEndAt: event.currentEndAt,
 
-            extensionCount:
-              event.extensionCount,
+          extensionCount: event.extensionCount,
 
-            status: 'LIVE',
-          };
-        },
-      );
+          status: 'LIVE',
+        };
+      });
 
-      setNotice(
-        'Auction extended by 2 minutes because of a late bid.',
-      );
+      setNotice('Auction extended by 2 minutes because of a late bid.');
 
       window.setTimeout(() => {
         setNotice('');
       }, 4000);
     }
 
-    function handleAuctionStarted(
-      event: AuctionStartedEvent,
-    ) {
-      if (
-        event.listingId !==
-        listingId
-      ) {
+    function handleAuctionStarted(event: AuctionStartedEvent) {
+      if (event.listingId !== listingId) {
         return;
       }
 
-      setAuction(
-        (current) => {
-          if (!current) {
-            return current;
-          }
+      setAuction((current) => {
+        if (!current) {
+          return current;
+        }
 
-          return {
-            ...current,
-            status: 'LIVE',
-          };
-        },
-      );
+        return {
+          ...current,
+          status: 'LIVE',
+        };
+      });
     }
 
-    function handleAuctionClosed(
-      event: AuctionClosedEvent,
-    ) {
-      if (
-        event.listingId !==
-        listingId
-      ) {
+    function handleAuctionClosed(event: AuctionClosedEvent) {
+      if (event.listingId !== listingId) {
         return;
       }
 
-      setAuction(
-        (current) => {
-          if (!current) {
-            return current;
-          }
+      setAuction((current) => {
+        if (!current) {
+          return current;
+        }
 
-          return {
-            ...current,
-            status: 'CLOSED',
-          };
-        },
-      );
+        return {
+          ...current,
+          status: 'CLOSED',
+        };
+      });
 
-      setNotice(
-        'This auction has closed.',
-      );
+      setNotice('This auction has closed.');
     }
 
-    function handleOutbid(
-      event: BidOutbidEvent,
-    ) {
-      if (
-        event.listingId !==
-        listingId
-      ) {
+    function handleOutbid(event: BidOutbidEvent) {
+      if (event.listingId !== listingId) {
         return;
       }
 
@@ -342,90 +240,43 @@ export default function AuctionDetailPage() {
        * The backend already sends this event
        * privately to the previous bidder's room.
        */
-      setNotice(
-        `You have been outbid. New highest bid: $${event.newHighestBid}.`,
-      );
+      setNotice(`You have been outbid. New highest bid: $${event.newHighestBid}.`);
 
       window.setTimeout(() => {
         setNotice('');
       }, 5000);
     }
 
-    socket.on(
-      'connect',
-      handleConnect,
-    );
+    socket.on('connect', handleConnect);
 
-    socket.on(
-      'disconnect',
-      handleDisconnect,
-    );
+    socket.on('disconnect', handleDisconnect);
 
-    socket.on(
-      'bid:new',
-      handleBidNew,
-    );
+    socket.on('bid:new', handleBidNew);
 
-    socket.on(
-      'auction:extended',
-      handleAuctionExtended,
-    );
+    socket.on('auction:extended', handleAuctionExtended);
 
-    socket.on(
-      'auction:started',
-      handleAuctionStarted,
-    );
+    socket.on('auction:started', handleAuctionStarted);
 
-    socket.on(
-      'auction:closed',
-      handleAuctionClosed,
-    );
+    socket.on('auction:closed', handleAuctionClosed);
 
-    socket.on(
-      'bid:outbid',
-      handleOutbid,
-    );
+    socket.on('bid:outbid', handleOutbid);
 
     return () => {
-      socket.emit(
-        'auction:leave',
-        listingId,
-      );
+      socket.emit('auction:leave', listingId);
 
-      socket.off(
-        'connect',
-        handleConnect,
-      );
+      socket.off('connect', handleConnect);
 
-      socket.off(
-        'disconnect',
-        handleDisconnect,
-      );
+      socket.off('disconnect', handleDisconnect);
 
-      socket.off(
-        'bid:new',
-        handleBidNew,
-      );
+      socket.off('bid:new', handleBidNew);
 
-      socket.off(
-        'auction:extended',
-        handleAuctionExtended,
-      );
+      socket.off('auction:extended', handleAuctionExtended);
 
-      socket.off(
-        'auction:started',
-        handleAuctionStarted,
-      );
+      socket.off('auction:started', handleAuctionStarted);
 
-      socket.off(
-        'auction:closed',
-        handleAuctionClosed,
-      );
+      socket.off('auction:closed', handleAuctionClosed);
 
-      socket.off(
-        'bid:outbid',
-        handleOutbid,
-      );
+      socket.off('bid:outbid', handleOutbid);
 
       socket.disconnect();
     };
@@ -437,34 +288,19 @@ export default function AuctionDetailPage() {
    *
    * We don't expose reservePrice.
    */
-  const minimumNextBid =
-    useMemo(() => {
-      if (!auction) {
-        return '0.00';
-      }
+  const minimumNextBid = useMemo(() => {
+    if (!auction) {
+      return '0.00';
+    }
 
-      if (
-        auction.currentHighestBid !==
-        null
-      ) {
-        return (
-          Number(
-            auction.currentHighestBid,
-          ) +
-          Number(
-            auction.minIncrement,
-          )
-        ).toFixed(2);
-      }
+    if (auction.currentHighestBid !== null) {
+      return (Number(auction.currentHighestBid) + Number(auction.minIncrement)).toFixed(2);
+    }
 
-      return Number(
-        auction.startingPrice,
-      ).toFixed(2);
-    }, [auction]);
+    return Number(auction.startingPrice).toFixed(2);
+  }, [auction]);
 
-  async function handlePlaceBid(
-    amount: string,
-  ) {
+  async function handlePlaceBid(amount: string) {
     if (!listingId) {
       return;
     }
@@ -473,15 +309,11 @@ export default function AuctionDetailPage() {
      * User must be logged in to bid.
      */
     if (!user) {
-      throw new Error(
-        'Please log in as a buyer to place a bid.',
-      );
+      throw new Error('Please log in as a buyer to place a bid.');
     }
 
     if (user.role !== 'BUYER') {
-      throw new Error(
-        'Only buyers can place bids.',
-      );
+      throw new Error('Only buyers can place bids.');
     }
 
     /*
@@ -492,14 +324,9 @@ export default function AuctionDetailPage() {
      * The backend emits bid:new and the
      * Socket.IO handler updates the UI.
      */
-    await placeBid(
-      listingId,
-      amount,
-    );
+    await placeBid(listingId, amount);
 
-    setNotice(
-      'Bid submitted successfully.',
-    );
+    setNotice('Bid submitted successfully.');
 
     window.setTimeout(() => {
       setNotice('');
@@ -513,9 +340,7 @@ export default function AuctionDetailPage() {
 
         <div className="mx-auto max-w-7xl px-6 py-16">
           <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
-            <p className="text-gray-600">
-              Loading auction...
-            </p>
+            <p className="text-gray-600">Loading auction...</p>
           </div>
         </div>
       </main>
@@ -529,14 +354,9 @@ export default function AuctionDetailPage() {
 
         <div className="mx-auto max-w-7xl px-6 py-16">
           <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
-            <h1 className="text-xl font-bold text-red-800">
-              Unable to load auction
-            </h1>
+            <h1 className="text-xl font-bold text-red-800">Unable to load auction</h1>
 
-            <p className="mt-2 text-sm text-red-700">
-              {error ||
-                'Auction not found.'}
-            </p>
+            <p className="mt-2 text-sm text-red-700">{error || 'Auction not found.'}</p>
 
             <Link
               href="/"
@@ -550,14 +370,25 @@ export default function AuctionDetailPage() {
     );
   }
 
-  const isBuyer =
-    user?.role === 'BUYER';
+  const countdown = useAuctionCountdown({
+    status: auction.status,
+    scheduledStartAt: auction.scheduledStartAt,
+    currentEndAt: auction.currentEndAt,
+  });
 
-  const isLive =
-    auction.status === 'LIVE';
+  const isBuyer = user?.role === 'BUYER';
 
-  const canBid =
-    isBuyer && isLive;
+  /*
+   * Use the actual clock-based auction phase
+   * for the UI.
+   *
+   * This prevents the button from remaining
+   * disabled while the database status is still
+   * waiting for the lifecycle job.
+   */
+  const isLive = countdown.phase === 'LIVE';
+
+  const canBid = isBuyer && isLive;
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -566,10 +397,7 @@ export default function AuctionDetailPage() {
       <div className="mx-auto max-w-7xl px-6 py-8">
         {/* Breadcrumb */}
         <div className="mb-6">
-          <Link
-            href="/"
-            className="text-sm font-medium text-gray-500 hover:text-gray-900"
-          >
+          <Link href="/" className="text-sm font-medium text-gray-500 hover:text-gray-900">
             ← Back to Auctions
           </Link>
         </div>
@@ -588,16 +416,10 @@ export default function AuctionDetailPage() {
         {user && (
           <div className="mb-6 flex items-center gap-2 text-xs text-gray-500">
             <span
-              className={`h-2 w-2 rounded-full ${
-                socketConnected
-                  ? 'bg-green-500'
-                  : 'bg-gray-300'
-              }`}
+              className={`h-2 w-2 rounded-full ${socketConnected ? 'bg-green-500' : 'bg-gray-300'}`}
             />
 
-            {socketConnected
-              ? 'Live updates connected'
-              : 'Connecting to live updates...'}
+            {socketConnected ? 'Live updates connected' : 'Connecting to live updates...'}
           </div>
         )}
 
@@ -610,18 +432,12 @@ export default function AuctionDetailPage() {
               <div className="flex aspect-[16/10] items-center justify-center bg-gray-100">
                 {auction.images?.[0] ? (
                   <img
-                    src={
-                      auction.images[0]
-                    }
-                    alt={
-                      auction.title
-                    }
+                    src={auction.images[0]}
+                    alt={auction.title}
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="text-sm text-gray-500">
-                    No image
-                  </span>
+                  <span className="text-sm text-gray-500">No image</span>
                 )}
               </div>
             </div>
@@ -631,70 +447,51 @@ export default function AuctionDetailPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    auction.status ===
-                    'LIVE'
+                    countdown.phase === 'LIVE'
                       ? 'bg-green-100 text-green-700'
-                      : auction.status ===
-                          'SCHEDULED'
+                      : countdown.phase === 'SCHEDULED'
                         ? 'bg-gray-100 text-gray-700'
                         : 'bg-gray-200 text-gray-600'
                   }`}
                 >
-                  {auction.status}
+                  {countdown.phase}
                 </span>
 
-                <span className="text-sm text-gray-500">
-                  {auction.category}
-                </span>
+                <span className="text-sm text-gray-500">{auction.category}</span>
               </div>
 
               <h1 className="mt-4 text-3xl font-black tracking-tight text-gray-950 sm:text-4xl">
                 {auction.title}
               </h1>
 
-              <p className="mt-5 whitespace-pre-line text-base leading-7 text-gray-600">
+              <p className="mt-5 text-base leading-7 whitespace-pre-line text-gray-600">
                 {auction.description}
               </p>
 
               <div className="mt-7 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="text-xs font-medium text-gray-500">
-                    Starting Price
-                  </p>
+                  <p className="text-xs font-medium text-gray-500">Starting Price</p>
 
                   <p className="mt-1 text-lg font-bold text-gray-900">
-                    $
-                    {Number(
-                      auction.startingPrice,
-                    ).toFixed(2)}
+                    ${Number(auction.startingPrice).toFixed(2)}
                   </p>
                 </div>
 
                 <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="text-xs font-medium text-gray-500">
-                    Current Highest Bid
-                  </p>
+                  <p className="text-xs font-medium text-gray-500">Current Highest Bid</p>
 
                   <p className="mt-1 text-lg font-bold text-gray-900">
-                    {auction.currentHighestBid ===
-                    null
+                    {auction.currentHighestBid === null
                       ? 'No bids'
-                      : `$${Number(
-                          auction.currentHighestBid,
-                        ).toFixed(2)}`}
+                      : `$${Number(auction.currentHighestBid).toFixed(2)}`}
                   </p>
                 </div>
 
                 <div className="rounded-xl bg-gray-50 p-4">
-                  <p className="text-xs font-medium text-gray-500">
-                    Bid Increment
-                  </p>
+                  <p className="text-xs font-medium text-gray-500">Bid Increment</p>
 
                   <p className="mt-1 text-lg font-bold text-gray-900">
-                    $
-                    {Number(
-                      auction.minIncrement,
-                    ).toFixed(2)}
+                    ${Number(auction.minIncrement).toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -702,9 +499,7 @@ export default function AuctionDetailPage() {
 
             {/* Bid History */}
             <div className="mt-6">
-              <BidHistory
-                bids={bids}
-              />
+              <BidHistory bids={bids} />
             </div>
           </div>
 
@@ -712,64 +507,41 @@ export default function AuctionDetailPage() {
           <aside className="space-y-6">
             {/* Countdown */}
             <AuctionCountdown
-              status={
-                auction.status
-              }
-              scheduledStartAt={
-                auction.scheduledStartAt
-              }
-              currentEndAt={
-                auction.currentEndAt
-              }
+              status={auction.status}
+              scheduledStartAt={auction.scheduledStartAt}
+              currentEndAt={auction.currentEndAt}
             />
 
             {/* Current Bid */}
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
                 Current Highest Bid
               </p>
 
               <p className="mt-2 text-4xl font-black text-gray-950">
-                {auction.currentHighestBid ===
-                null
-                  ? `$${Number(
-                      auction.startingPrice,
-                    ).toFixed(2)}`
-                  : `$${Number(
-                      auction.currentHighestBid,
-                    ).toFixed(2)}`}
+                {auction.currentHighestBid === null
+                  ? `$${Number(auction.startingPrice).toFixed(2)}`
+                  : `$${Number(auction.currentHighestBid).toFixed(2)}`}
               </p>
 
-              {auction.currentHighestBid ===
-                null && (
-                <p className="mt-2 text-xs text-gray-500">
-                  No bids have been placed yet.
-                </p>
+              {auction.currentHighestBid === null && (
+                <p className="mt-2 text-xs text-gray-500">No bids have been placed yet.</p>
               )}
             </div>
 
             {/* Bid Form */}
             {isBuyer ? (
               <BidForm
-                minimumNextBid={
-                  minimumNextBid
-                }
-                disabled={
-                  !canBid
-                }
-                onSubmit={
-                  handlePlaceBid
-                }
+                minimumNextBid={minimumNextBid}
+                disabled={!canBid}
+                onSubmit={handlePlaceBid}
               />
             ) : !user ? (
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900">
-                  Want to bid?
-                </h2>
+                <h2 className="text-lg font-bold text-gray-900">Want to bid?</h2>
 
                 <p className="mt-2 text-sm leading-6 text-gray-600">
-                  Log in with a Buyer account
-                  to place a bid.
+                  Log in with a Buyer account to place a bid.
                 </p>
 
                 <Link
@@ -781,27 +553,19 @@ export default function AuctionDetailPage() {
               </div>
             ) : (
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900">
-                  Seller Account
-                </h2>
+                <h2 className="text-lg font-bold text-gray-900">Seller Account</h2>
 
-                <p className="mt-2 text-sm text-gray-600">
-                  Sellers cannot place bids.
-                </p>
+                <p className="mt-2 text-sm text-gray-600">Sellers cannot place bids.</p>
               </div>
             )}
 
             {/* Auction details */}
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-gray-900">
-                Auction Details
-              </h2>
+              <h2 className="text-lg font-bold text-gray-900">Auction Details</h2>
 
               <dl className="mt-5 space-y-4">
                 <div className="flex justify-between gap-4">
-                  <dt className="text-sm text-gray-500">
-                    Category
-                  </dt>
+                  <dt className="text-sm text-gray-500">Category</dt>
 
                   <dd className="text-right text-sm font-semibold text-gray-900">
                     {auction.category}
@@ -809,21 +573,15 @@ export default function AuctionDetailPage() {
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <dt className="text-sm text-gray-500">
-                    Original End
-                  </dt>
+                  <dt className="text-sm text-gray-500">Original End</dt>
 
                   <dd className="text-right text-sm font-semibold text-gray-900">
-                    {new Date(
-                      auction.scheduledEndAt,
-                    ).toLocaleString()}
+                    {new Date(auction.scheduledEndAt).toLocaleString()}
                   </dd>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <dt className="text-sm text-gray-500">
-                    Extensions
-                  </dt>
+                  <dt className="text-sm text-gray-500">Extensions</dt>
 
                   <dd className="text-right text-sm font-semibold text-gray-900">
                     {auction.extensionCount}
