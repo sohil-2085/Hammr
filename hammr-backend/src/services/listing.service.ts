@@ -92,7 +92,6 @@ export async function getListingDetail(listingId: string) {
     where: {
       id: listingId,
     },
-
     include: {
       seller: {
         select: {
@@ -107,72 +106,73 @@ export async function getListingDetail(listingId: string) {
     throw new Error('LISTING_NOT_FOUND');
   }
 
-  /*
-   * Current highest bid.
-   */
-  const currentHighestBid = listing.currentHighestBid ? listing.currentHighestBid.toFixed(2) : null;
+  const now = new Date();
+
+  let effectiveStatus = listing.status;
 
   /*
-   * Minimum next bid.
-   *
-   * First bid:
-   * startingPrice
-   *
-   * Later:
-   * currentHighestBid + minIncrement
+   * If the auction has reached its scheduled start
+   * and has not reached its current end time,
+   * treat it as LIVE.
    */
-  const minimumNextBid = listing.currentHighestBid
-    ? listing.currentHighestBid.plus(listing.minIncrement).toFixed(2)
-    : listing.startingPrice.toFixed(2);
+  if (
+    listing.status === 'SCHEDULED' &&
+    now >= listing.scheduledStartAt &&
+    now < listing.currentEndAt
+  ) {
+    effectiveStatus = 'LIVE';
+  }
 
   /*
-   * Reserve status.
-   *
-   * We expose only whether the reserve
-   * has been met, never the reserve amount.
+   * If the current end time has passed,
+   * treat it as CLOSED.
    */
+  if (listing.status !== 'CLOSED' && now >= listing.currentEndAt) {
+    effectiveStatus = 'CLOSED';
+  }
+
+  const currentHighestBid = listing.currentHighestBid ? Number(listing.currentHighestBid) : null;
+
+  const startingPrice = Number(listing.startingPrice);
+  const minIncrement = Number(listing.minIncrement);
+
+  const minimumNextBid =
+    currentHighestBid !== null ? currentHighestBid + minIncrement : startingPrice;
+
   const reserveMet =
-    listing.reservePrice !== null &&
-    listing.currentHighestBid !== null &&
-    listing.currentHighestBid.gte(listing.reservePrice);
+    listing.reservePrice !== null && currentHighestBid !== null
+      ? currentHighestBid >= Number(listing.reservePrice)
+      : false;
 
   return {
     id: listing.id,
-
     title: listing.title,
-
     description: listing.description,
-
     images: listing.images,
-
     category: listing.category,
 
-    startingPrice: listing.startingPrice.toFixed(2),
+    startingPrice: listing.startingPrice.toString(),
 
-    currentHighestBid,
+    currentHighestBid: listing.currentHighestBid?.toString() ?? null,
 
     currentHighestBidderId: listing.currentHighestBidderId,
 
-    minIncrement: listing.minIncrement.toFixed(2),
+    minIncrement: listing.minIncrement.toString(),
 
-    minimumNextBid,
+    minimumNextBid: minimumNextBid.toFixed(2),
 
-    status: listing.status,
+    status: effectiveStatus,
 
-    scheduledStartAt: listing.scheduledStartAt.toISOString(),
+    scheduledStartAt: listing.scheduledStartAt,
 
-    scheduledEndAt: listing.scheduledEndAt.toISOString(),
+    scheduledEndAt: listing.scheduledEndAt,
 
-    currentEndAt: listing.currentEndAt.toISOString(),
+    currentEndAt: listing.currentEndAt,
 
     extensionCount: listing.extensionCount,
 
     reserveMet,
 
-    seller: {
-      id: listing.seller.id,
-
-      name: listing.seller.name,
-    },
+    seller: listing.seller,
   };
 }
