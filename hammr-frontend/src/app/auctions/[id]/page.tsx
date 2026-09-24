@@ -455,7 +455,7 @@ export default function AuctionDetailPage() {
         {/* Breadcrumb */}
         <div className="mb-6">
           <Link href="/" className="text-sm font-medium text-gray-500 hover:text-gray-900">
-            ← Back to Auctions
+            â† Back to Auctions
           </Link>
         </div>
 
@@ -593,7 +593,15 @@ export default function AuctionDetailPage() {
             </div>
 
             {/* Bid form */}
-            {isBuyer ? (
+            {countdown.phase === 'CLOSED' ? (
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-bold text-gray-900">Auction Concluded</h2>
+
+                <p className="mt-2 text-sm text-gray-600">
+                  This auction has ended and is no longer accepting bids.
+                </p>
+              </div>
+            ) : isBuyer ? (
               <BidForm
                 minimumNextBid={minimumNextBid}
                 disabled={!canBid}

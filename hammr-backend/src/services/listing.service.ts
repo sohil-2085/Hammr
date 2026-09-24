@@ -49,10 +49,33 @@ export const createListing = async (sellerId: string, input: CreateListingInput)
  */
 
 export const getListings = async () => {
-  return prisma.listing.findMany({
+  const listings = await prisma.listing.findMany({
     orderBy: {
       createdAt: 'desc',
     },
+  });
+
+  const now = new Date();
+
+  return listings.map((listing) => {
+    let effectiveStatus = listing.status;
+
+    if (
+      listing.status === 'SCHEDULED' &&
+      now >= listing.scheduledStartAt &&
+      now < listing.currentEndAt
+    ) {
+      effectiveStatus = 'LIVE';
+    }
+
+    if (listing.status !== 'CLOSED' && now >= listing.currentEndAt) {
+      effectiveStatus = 'CLOSED';
+    }
+
+    return {
+      ...listing,
+      status: effectiveStatus,
+    };
   });
 };
 
@@ -63,7 +86,7 @@ export const getListings = async () => {
  */
 
 export const getMyListings = async (sellerId: string) => {
-  return prisma.listing.findMany({
+  const listings = await prisma.listing.findMany({
     where: {
       sellerId,
     },
@@ -71,6 +94,29 @@ export const getMyListings = async (sellerId: string) => {
     orderBy: {
       createdAt: 'desc',
     },
+  });
+
+  const now = new Date();
+
+  return listings.map((listing) => {
+    let effectiveStatus = listing.status;
+
+    if (
+      listing.status === 'SCHEDULED' &&
+      now >= listing.scheduledStartAt &&
+      now < listing.currentEndAt
+    ) {
+      effectiveStatus = 'LIVE';
+    }
+
+    if (listing.status !== 'CLOSED' && now >= listing.currentEndAt) {
+      effectiveStatus = 'CLOSED';
+    }
+
+    return {
+      ...listing,
+      status: effectiveStatus,
+    };
   });
 };
 
