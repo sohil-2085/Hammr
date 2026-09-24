@@ -35,6 +35,11 @@ export interface AuctionDetail {
 
   sellerId?: string;
   sellerName?: string;
+
+  winner?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface BidHistoryItem {
