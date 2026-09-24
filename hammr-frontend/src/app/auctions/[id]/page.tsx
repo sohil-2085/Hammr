@@ -592,13 +592,17 @@ export default function AuctionDetailPage() {
               )}
             </div>
 
-            {/* Bid form */}
+            {/* Bid form or Winner section */}
             {countdown.phase === 'CLOSED' ? (
               <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900">Auction Concluded</h2>
+                <h2 className="text-lg font-bold text-gray-900">
+                  {auction.winner?.id === user?.id ? '🎉 Congratulations!' : 'Auction Concluded'}
+                </h2>
 
                 <p className="mt-2 text-sm text-gray-600">
-                  This auction has ended and is no longer accepting bids.
+                  {auction.winner?.id === user?.id
+                    ? `You won this auction with a bid of $${Number(auction.currentHighestBid).toFixed(2)}.`
+                    : 'This auction has ended and is no longer accepting bids.'}
                 </p>
               </div>
             ) : isBuyer ? (

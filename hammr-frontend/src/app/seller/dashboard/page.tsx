@@ -19,6 +19,10 @@ type Listing = {
   scheduledEndAt?: string;
   currentEndAt: string;
   status: 'SCHEDULED' | 'LIVE' | 'CLOSED';
+  winner?: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 function formatPrice(price: number | string | null | undefined) {
@@ -193,6 +197,10 @@ export default function SellerDashboardPage() {
                       </th>
 
                       <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                        Winner
+                      </th>
+
+                      <th className="px-6 py-4 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
                         Schedule
                       </th>
                     </tr>
@@ -257,6 +265,13 @@ export default function SellerDashboardPage() {
                         <td className="px-6 py-5">
                           <span className="text-sm font-semibold text-gray-900">
                             {formatPrice(listing.currentHighestBid)}
+                          </span>
+                        </td>
+
+                        {/* Winner */}
+                        <td className="px-6 py-5">
+                          <span className="text-sm text-gray-900">
+                            {listing.status === 'CLOSED' ? (listing.winner?.name || 'No winner') : '—'}
                           </span>
                         </td>
 
