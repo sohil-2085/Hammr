@@ -98,6 +98,13 @@ export const getMyListings = async (sellerId: string) => {
 
   const now = new Date();
 
+  const bidderIds = Array.from(new Set(listings.map((l) => l.currentHighestBidderId).filter(Boolean))) as string[];
+  const bidders = await prisma.user.findMany({
+    where: { id: { in: bidderIds } },
+    select: { id: true, name: true },
+  });
+  const bidderMap = new Map(bidders.map((b) => [b.id, b]));
+
   return listings.map((listing) => {
     let effectiveStatus = listing.status;
 
@@ -113,9 +120,12 @@ export const getMyListings = async (sellerId: string) => {
       effectiveStatus = 'CLOSED';
     }
 
+    const winner = listing.currentHighestBidderId ? bidderMap.get(listing.currentHighestBidderId) || null : null;
+
     return {
       ...listing,
       status: effectiveStatus,
+      winner,
     };
   });
 };
@@ -190,6 +200,17 @@ export async function getListingDetail(listingId: string) {
       ? currentHighestBid >= Number(listing.reservePrice)
       : false;
 
+  let winner = null;
+  if (listing.currentHighestBidderId) {
+    const user = await prisma.user.findUnique({
+      where: { id: listing.currentHighestBidderId },
+      select: { id: true, name: true },
+    });
+    if (user) {
+      winner = user;
+    }
+  }
+
   return {
     id: listing.id,
     title: listing.title,
@@ -220,5 +241,7 @@ export async function getListingDetail(listingId: string) {
     reserveMet,
 
     seller: listing.seller,
+
+    winner,
   };
 }
