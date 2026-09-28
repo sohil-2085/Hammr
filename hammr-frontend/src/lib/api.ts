@@ -5,6 +5,7 @@ import type { CreateListingInput } from '../types/listing';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 const ACCESS_TOKEN_STORAGE_KEY = 'hammr_access_token';
+const REFRESH_TOKEN_STORAGE_KEY = 'hammr_refresh_token';
 
 export function setAccessToken(token: string | null): void {
   if (typeof window === 'undefined') {
@@ -24,6 +25,26 @@ export function getAccessToken(): string | null {
   }
 
   return sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+}
+
+export function setRefreshToken(token: string | null): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (token) {
+    sessionStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+  } else {
+    sessionStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  }
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return sessionStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -75,7 +96,12 @@ export function register(data: {
   });
 }
 
-export function login(data: { email: string; password: string; twoFactorCode?: string }) {
+export async function login(data: { email: string; password: string; twoFactorCode?: string }) {
+  // Remove any previous browser session before starting
+  // a new login attempt.
+  setAccessToken(null);
+  setRefreshToken(null);
+
   return request<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -105,6 +131,7 @@ export function verifyTwoFactor(setupToken: string, code: string) {
 
 export function refresh(refreshToken: string) {
   return request<{
+    user: import('../types/auth').AuthUser;
     accessToken: string;
     refreshToken: string;
     accessTokenExpiresIn: string;

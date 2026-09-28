@@ -4,7 +4,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 import type { AuthUser, LoginResponse } from '@/types/auth';
 
-import { getAccessToken, logout as logoutRequest, setAccessToken } from '@/lib/api';
+import {
+  getAccessToken,
+  getRefreshToken,
+  logout as logoutRequest,
+  refresh as refreshRequest,
+  setAccessToken,
+  setRefreshToken,
+} from '@/lib/api';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -18,16 +25,51 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshTokenState] = useState<string | null>(null);
 
   useEffect(() => {
-    // Access token is persisted in
-    // sessionStorage by api.ts.
-    //
-    // We intentionally don't keep
-    // another module-level in-memory
-    // copy of the token.
-    getAccessToken();
+    let cancelled = false;
+
+    async function restoreSession() {
+      const storedAccessToken = getAccessToken();
+      const storedRefreshToken = getRefreshToken();
+
+      if (!storedRefreshToken) {
+        if (!storedAccessToken) {
+          setUser(null);
+        }
+
+        return;
+      }
+
+      try {
+        const result = await refreshRequest(storedRefreshToken);
+
+        if (cancelled) {
+          return;
+        }
+
+        setAccessToken(result.accessToken);
+        setRefreshToken(result.refreshToken);
+        setRefreshTokenState(result.refreshToken);
+        setUser(result.user);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        setAccessToken(null);
+        setRefreshToken(null);
+        setRefreshTokenState(null);
+        setUser(null);
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function login(result: LoginResponse) {
@@ -36,18 +78,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setAccessToken(result.accessToken);
 
-      setRefreshToken(result.refreshToken ?? null);
+      if (result.refreshToken) {
+        setRefreshToken(result.refreshToken);
+        setRefreshTokenState(result.refreshToken);
+      }
 
       return;
     }
 
-    // Login can also return a
-    // 2FA/setup requirement.
-    //
-    // In those cases there is no
-    // authenticated access token yet.
     setUser(null);
     setAccessToken(null);
+    setRefreshToken(null);
+    setRefreshTokenState(null);
   }
 
   async function logout() {
@@ -60,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setAccessToken(null);
       setRefreshToken(null);
+      setRefreshTokenState(null);
       setUser(null);
     }
   }

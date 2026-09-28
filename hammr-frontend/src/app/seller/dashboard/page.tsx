@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import SellerNavbar from '@/components/SellerNavbar';
 import { getMyListings } from '@/lib/listing';
@@ -52,31 +52,14 @@ function getStatusClasses(status: Listing['status']) {
 }
 
 export default function SellerDashboardPage() {
-  const [listings, setListings] = useState<Listing[]>([]);
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    async function loadMyListings() {
-      try {
-        setLoading(true);
-        setError('');
-
-        const data = await getMyListings();
-
-        setListings(data);
-      } catch (err) {
-        console.error(err);
-
-        setError(err instanceof Error ? err.message : 'Unable to load your listings.');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadMyListings();
-  }, []);
+  const {
+    data: listings = [],
+    isPending: loading,
+    error,
+  } = useQuery<Listing[], Error>({
+    queryKey: ['my-listings'],
+    queryFn: getMyListings,
+  });
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -149,7 +132,7 @@ export default function SellerDashboardPage() {
               role="alert"
               className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
             >
-              {error}
+              {error.message}
             </div>
           )}
 
@@ -271,7 +254,9 @@ export default function SellerDashboardPage() {
                         {/* Winner */}
                         <td className="px-6 py-5">
                           <span className="text-sm text-gray-900">
-                            {listing.status === 'CLOSED' ? (listing.winner?.name || 'No winner') : '—'}
+                            {listing.status === 'CLOSED'
+                              ? listing.winner?.name || 'No winner'
+                              : '—'}
                           </span>
                         </td>
 

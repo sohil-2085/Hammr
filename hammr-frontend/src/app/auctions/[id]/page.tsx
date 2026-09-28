@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import BuyerNavbar from '@/components/BuyerNavbar';
 import AuctionCountdown from '@/components/AuctionCountdown';
@@ -30,57 +31,36 @@ import type {
 
 export default function AuctionDetailPage() {
   const params = useParams();
+  const queryClient = useQueryClient();
 
   const listingId = typeof params.id === 'string' ? params.id : '';
 
   const { user } = useAuth();
 
-  const [auction, setAuction] = useState<AuctionDetail | null>(null);
+  const auctionQuery = useQuery({
+    queryKey: ['auction', listingId],
+    queryFn: () => getAuctionDetail(listingId),
+    enabled: Boolean(listingId),
+  });
 
-  const [bids, setBids] = useState<BidHistoryItem[]>([]);
+  const bidsQuery = useQuery({
+    queryKey: ['auction', listingId, 'bids'],
+    queryFn: () => getAuctionBidHistory(listingId),
+    enabled: Boolean(listingId),
+  });
 
-  const [loading, setLoading] = useState(true);
-
-  const [error, setError] = useState('');
+  const auction = auctionQuery.data ?? null;
+  const bids = bidsQuery.data ?? [];
+  const loading = auctionQuery.isPending || bidsQuery.isPending;
+  const error = auctionQuery.error?.message ?? bidsQuery.error?.message ?? '';
 
   const [socketConnected, setSocketConnected] = useState(false);
 
   const [notice, setNotice] = useState('');
 
-  /*
-   * Load auction and bid history.
-   */
-  const loadAuction = useCallback(async () => {
-    if (!listingId) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError('');
-
-      const [auctionData, bidData] = await Promise.all([
-        getAuctionDetail(listingId),
-        getAuctionBidHistory(listingId),
-      ]);
-
-      setAuction(auctionData);
-      setBids(bidData);
-    } catch (err) {
-      console.error(err);
-
-      setError(err instanceof Error ? err.message : 'Unable to load auction.');
-    } finally {
-      setLoading(false);
-    }
-  }, [listingId]);
-
-  /*
-   * Load auction when listing ID changes.
-   */
-  useEffect(() => {
-    loadAuction();
-  }, [loadAuction]);
+  const bidMutation = useMutation({
+    mutationFn: (amount: string) => placeBid(listingId, amount),
+  });
 
   /*
    * IMPORTANT:
@@ -151,7 +131,7 @@ export default function AuctionDetailPage() {
         return;
       }
 
-      setAuction((current) => {
+      queryClient.setQueryData<AuctionDetail>(['auction', listingId], (current) => {
         if (!current) {
           return current;
         }
@@ -174,7 +154,7 @@ export default function AuctionDetailPage() {
       /*
        * Add the new bid to the history.
        */
-      setBids((current) => {
+      queryClient.setQueryData<BidHistoryItem[]>(['auction', listingId, 'bids'], (current = []) => {
         const exists = current.some((bid) => bid.id === event.bid.id);
 
         if (exists) {
@@ -205,7 +185,7 @@ export default function AuctionDetailPage() {
         return;
       }
 
-      setAuction((current) => {
+      queryClient.setQueryData<AuctionDetail>(['auction', listingId], (current) => {
         if (!current) {
           return current;
         }
@@ -236,7 +216,7 @@ export default function AuctionDetailPage() {
         return;
       }
 
-      setAuction((current) => {
+      queryClient.setQueryData<AuctionDetail>(['auction', listingId], (current) => {
         if (!current) {
           return current;
         }
@@ -256,7 +236,7 @@ export default function AuctionDetailPage() {
         return;
       }
 
-      setAuction((current) => {
+      queryClient.setQueryData<AuctionDetail>(['auction', listingId], (current) => {
         if (!current) {
           return current;
         }
@@ -324,7 +304,7 @@ export default function AuctionDetailPage() {
 
       socket.disconnect();
     };
-  }, [listingId]);
+  }, [listingId, queryClient]);
 
   /*
    * Calculate minimum next bid from
@@ -372,7 +352,7 @@ export default function AuctionDetailPage() {
      * Socket.IO will update the UI with
      * the resulting bid:new event.
      */
-    await placeBid(listingId, amount);
+    await bidMutation.mutateAsync(amount);
 
     setNotice('Bid submitted successfully.');
 

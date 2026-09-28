@@ -207,12 +207,12 @@ export async function login(email: string, password: string, twoFactorCode?: str
 
     const secret = decryptSecret(user.twoFactorSecret);
 
-    const validCode = await verify({
+    const verificationResult = await verify({
       token: twoFactorCode,
       secret,
     });
 
-    if (!validCode) {
+    if (!verificationResult.valid) {
       throw new Error('Invalid 2FA code.');
     }
   }
@@ -286,12 +286,12 @@ export async function verifyTwoFactor(userId: string, code: string) {
 
   const secret = decryptSecret(user.twoFactorSecret);
 
-  const valid = await verify({
+  const verificationResult = await verify({
     token: code,
     secret,
   });
 
-  if (!valid) {
+  if (!verificationResult.valid) {
     throw new Error('Invalid 2FA code.');
   }
 
@@ -387,6 +387,7 @@ export async function refresh(refreshToken: string) {
   ]);
 
   return {
+    user: getPublicUser(user),
     accessToken: newAccessToken,
     refreshToken: newRefreshToken,
     accessTokenExpiresIn: '1d',

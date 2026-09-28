@@ -1,36 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import BuyerNavbar from '@/components/BuyerNavbar';
 import { getListings } from '@/lib/listing';
 
 export default function BuyerDashboardPage() {
-  const [listings, setListings] = useState<Listing[]>([]);
+  const {
+    data: listings = [],
+    isPending: loading,
+    isError,
+  } = useQuery<Listing[]>({
+    queryKey: ['listings'],
+    queryFn: getListings,
+  });
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    async function loadListings() {
-      try {
-        setLoading(true);
-        setError('');
-
-        const data = await getListings();
-
-        setListings(data);
-      } catch (err) {
-        console.error(err);
-        setError('Unable to load auctions.');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadListings();
-  }, []);
+  const error = isError ? 'Unable to load auctions.' : '';
 
   const availableAuctions = listings.filter(
     (listing) => listing.status === 'LIVE' || listing.status === 'SCHEDULED',
