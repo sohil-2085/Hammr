@@ -4,9 +4,9 @@
   "description": "",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "node init && tsx watch src/index.ts",
-    "build": "node init && tsc",
-    "start": "node init && node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
     "prisma:migrate": "prisma migrate dev",
